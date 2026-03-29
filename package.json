@@ -1,0 +1,29 @@
+{
+  "name": "dryrun2-contact-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build a simple contact manager web application. Users can create contacts with name, email, phone, and company. Users can edit and delete contacts. Users can search contacts by name or company. The app should have a clean, modern UI. Use Express.js with React and PostgreSQL via Drizzle ORM. Include API tests.",
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "lint": "npm run lint:server && npm run lint:client",
+    "lint:server": "cd server && npm run lint",
+    "lint:client": "cd client && npm run lint",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "cd server && npm run test",
+    "test:client": "cd client && npm run test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "typescript": "^5.5.0"
+  }
+}
