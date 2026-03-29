@@ -1,0 +1,152 @@
+# TraviTeam Test Runner — workflow_dispatch triggered by agents
+# MPLAN 2.1.1.a
+name: TraviTeam Test Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_command:
+        description: 'Test command to run (e.g., "npm test -- --reporter=json")'
+        required: true
+        type: string
+      coverage:
+        description: 'Enable coverage reporting'
+        required: false
+        default: 'true'
+        type: string
+      timeout:
+        description: 'Test timeout in minutes'
+        required: false
+        default: '10'
+        type: string
+      lint_command:
+        description: 'Lint command (empty to skip)'
+        required: false
+        default: ''
+        type: string
+      typecheck_command:
+        description: 'Typecheck command (empty to skip)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(inputs.timeout) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Node.js detection ---
+      - name: Detect Node.js project
+        id: detect-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "is_node=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_node=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.detect-node.outputs.is_node == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        if: steps.detect-node.outputs.is_node == 'true'
+        run: npm ci
+
+      # --- Python detection ---
+      - name: Detect Python project
+        id: detect-python
+        run: |
+          if [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+            echo "is_python=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_python=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        if: steps.detect-python.outputs.is_python == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        if: steps.detect-python.outputs.is_python == 'true'
+        run: |
+          pip install -r requirements.txt 2>/dev/null || pip install -e ".[dev]" 2>/dev/null || true
+
+      # --- Go detection ---
+      - name: Detect Go project
+        id: detect-go
+        run: |
+          if [ -f "go.mod" ]; then
+            echo "is_go=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_go=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Go
+        if: steps.detect-go.outputs.is_go == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      # --- Lint (optional) ---
+      - name: Run linter
+        if: inputs.lint_command != ''
+        id: lint
+        continue-on-error: true
+        run: ${{ inputs.lint_command }} > lint-results.json 2>&1 || true
+
+      - name: Upload lint results
+        if: inputs.lint_command != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-results
+          path: lint-results.json
+          retention-days: 3
+
+      # --- Typecheck (optional) ---
+      - name: Run typecheck
+        if: inputs.typecheck_command != ''
+        id: typecheck
+        continue-on-error: true
+        run: ${{ inputs.typecheck_command }} > typecheck-results.json 2>&1 || true
+
+      - name: Upload typecheck results
+        if: inputs.typecheck_command != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-results
+          path: typecheck-results.json
+          retention-days: 3
+
+      # --- Tests ---
+      - name: Run tests
+        id: tests
+        run: ${{ inputs.test_command }} > test-results.json 2>&1 || true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.json
+          retention-days: 7
+
+      # --- Coverage (optional) ---
+      - name: Upload coverage
+        if: inputs.coverage == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+            htmlcov/
+            cover.out
+          retention-days: 7
+          if-no-files-found: ignore
